@@ -14,10 +14,12 @@ from operation import Lighting
 import os
 import numpy as np
 
+
 class CutoutDefault(object):
     """
     Reference : https://github.com/quark0/darts/blob/master/cnn/utils.py
     """
+
     def __init__(self, length):
         self.length = length
 
@@ -38,6 +40,7 @@ class CutoutDefault(object):
         img *= mask
         return img
 
+
 class SubsetSampler(Sampler):
     r"""Samples elements from a given list of indices, without replacement.
 
@@ -53,6 +56,7 @@ class SubsetSampler(Sampler):
 
     def __len__(self):
         return len(self.indices)
+
 
 class AugmentDataset(torch.utils.data.Dataset):
     def __init__(self, dataset, pre_transforms, after_transforms, valid_transforms, ops_names, search, magnitudes):
@@ -92,15 +96,17 @@ class AugmentDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.dataset.__len__()
 
+
 _IMAGENET_PCA = {
     'eigval': [0.2175, 0.0188, 0.0045],
     'eigvec': [
-        [-0.5675,  0.7192,  0.4009],
+        [-0.5675, 0.7192, 0.4009],
         [-0.5808, -0.0045, -0.8140],
-        [-0.5836, -0.6948,  0.4203],
+        [-0.5836, -0.6948, 0.4203],
     ]
 }
 _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+
 
 def num_class(dataset):
     return {
@@ -115,7 +121,27 @@ def num_class(dataset):
         'reduced_imagenet': 120,
     }[dataset]
 
-def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes, cutout, cutout_length, split=0.5, split_idx=0, target_lb=-1):
+
+def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes, cutout, cutout_length, split=0.5,
+                    split_idx=0, target_lb=-1):
+    """
+
+    Args:
+        dataset: str
+        batch: int
+        num_workers: int
+        dataroot: the dataset dir
+        ops_names: list[tuple], [N=105, K=2], str
+        magnitudes: tensor, shape [N, k]
+        cutout: boolean,
+        cutout_length: int
+        split: float, default 0.5
+        split_idx: int, the number of the next(StratifiedShuffleSplit.split) function is called is equal `split_idx` + 1
+        target_lb: int, target label, if `target_lb` > 0, the train_label only include the `target_lb`
+
+    Returns:
+
+    """
     if 'cifar' in dataset or 'svhn' in dataset:
         transform_train_pre = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -158,23 +184,27 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
 
     if dataset == 'cifar10':
         total_trainset = torchvision.datasets.CIFAR10(root=dataroot, train=True, download=True, transform=None)
+        total_trainset.train_data = total_trainset.train_data[:100]
+        total_trainset.train_labels = total_trainset.train_labels[:100]
         # testset = torchvision.datasets.CIFAR10(root=dataroot, train=False, download=True, transform=None)
+        total_trainset.targets = total_trainset.train_labels
     elif dataset == 'reduced_cifar10':
         total_trainset = torchvision.datasets.CIFAR10(root=dataroot, train=True, download=True, transform=None)
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=46000, random_state=0)   # 4000 trainset
-        sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=46000, random_state=0)  # 4000 trainset
+        sss = sss.split(list(range(len(total_trainset))), total_trainset.train_labels)
         train_idx, valid_idx = next(sss)
-        targets = [total_trainset.targets[idx] for idx in train_idx]
+        targets = [total_trainset.train_labels[idx] for idx in train_idx]
         total_trainset = Subset(total_trainset, train_idx)
         total_trainset.targets = targets
 
         # testset = torchvision.datasets.CIFAR10(root=dataroot, train=False, download=True, transform=None)
     elif dataset == 'cifar100':
         total_trainset = torchvision.datasets.CIFAR100(root=dataroot, train=True, download=True, transform=None)
+        total_trainset.targets = total_trainset.test_labels
         # testset = torchvision.datasets.CIFAR100(root=dataroot, train=False, download=True, transform=transform_test)
     elif dataset == 'reduced_cifar100':
         total_trainset = torchvision.datasets.CIFAR100(root=dataroot, train=True, download=True, transform=None)
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=46000, random_state=0)   # 4000 trainset
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=46000, random_state=0)  # 4000 trainset
         sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
         train_idx, valid_idx = next(sss)
         targets = [total_trainset.targets[idx] for idx in train_idx]
@@ -189,7 +219,7 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
         # testset = torchvision.datasets.SVHN(root=dataroot, split='test', download=True, transform=transform_test)
     elif dataset == 'reduced_svhn':
         total_trainset = torchvision.datasets.SVHN(root=dataroot, split='train', download=True, transform=None)
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=73257-1000, random_state=0)  # 1000 trainset
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=73257 - 1000, random_state=0)  # 1000 trainset
         # sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
         sss = sss.split(list(range(len(total_trainset))), total_trainset.labels)
         train_idx, valid_idx = next(sss)
@@ -202,14 +232,19 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
 
         # testset = torchvision.datasets.SVHN(root=dataroot, split='test', download=True, transform=transform_test)
     elif dataset == 'imagenet':
-        total_trainset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), transform=None)
+        total_trainset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), download=True, transform=None)
         # testset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), split='val', transform=transform_test)
 
         # compatibility
         total_trainset.targets = [lb for _, lb in total_trainset.samples]
     elif dataset == 'reduced_imagenet':
         # randomly chosen indices
-        idx120 = [904, 385, 759, 884, 784, 844, 132, 214, 990, 786, 979, 582, 104, 288, 697, 480, 66, 943, 308, 282, 118, 926, 882, 478, 133, 884, 570, 964, 825, 656, 661, 289, 385, 448, 705, 609, 955, 5, 703, 713, 695, 811, 958, 147, 6, 3, 59, 354, 315, 514, 741, 525, 685, 673, 657, 267, 575, 501, 30, 455, 905, 860, 355, 911, 24, 708, 346, 195, 660, 528, 330, 511, 439, 150, 988, 940, 236, 803, 741, 295, 111, 520, 856, 248, 203, 147, 625, 589, 708, 201, 712, 630, 630, 367, 273, 931, 960, 274, 112, 239, 463, 355, 955, 525, 404, 59, 981, 725, 90, 782, 604, 323, 418, 35, 95, 97, 193, 690, 869, 172]
+        idx120 = [904, 385, 759, 884, 784, 844, 132, 214, 990, 786, 979, 582, 104, 288, 697, 480, 66, 943, 308, 282,
+                  118, 926, 882, 478, 133, 884, 570, 964, 825, 656, 661, 289, 385, 448, 705, 609, 955, 5, 703, 713, 695,
+                  811, 958, 147, 6, 3, 59, 354, 315, 514, 741, 525, 685, 673, 657, 267, 575, 501, 30, 455, 905, 860,
+                  355, 911, 24, 708, 346, 195, 660, 528, 330, 511, 439, 150, 988, 940, 236, 803, 741, 295, 111, 520,
+                  856, 248, 203, 147, 625, 589, 708, 201, 712, 630, 630, 367, 273, 931, 960, 274, 112, 239, 463, 355,
+                  955, 525, 404, 59, 981, 725, 90, 782, 604, 323, 418, 35, 95, 97, 193, 690, 869, 172]
         total_trainset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), transform=None)
         # testset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), split='val', transform=transform_test)
 
@@ -234,13 +269,12 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
         # print(len(filter_train_idx))
 
         targets = [idx120.index(total_trainset.targets[idx]) for idx in filter_train_idx]
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=len(filter_train_idx) - 6000, random_state=0)  # 4000 trainset
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=len(filter_train_idx) - 6000,
+                                     random_state=0)  # 4000 trainset
         sss = sss.split(list(range(len(filter_train_idx))), targets)
         train_idx, valid_idx = next(sss)
         train_idx = [filter_train_idx[x] for x in train_idx]
         valid_idx = [filter_train_idx[x] for x in valid_idx]
-
-
 
         targets = [idx120.index(total_trainset.targets[idx]) for idx in train_idx]
         for idx in range(len(total_trainset.samples)):
@@ -273,7 +307,6 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetSampler(valid_idx)
 
-
         # if horovod:
         #     import horovod.torch as hvd
         #     train_sampler = torch.utils.data.distributed.DistributedSampler(train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
@@ -283,19 +316,18 @@ def get_dataloaders(dataset, batch, num_workers, dataroot, ops_names, magnitudes
         # if horovod:
         #     import horovod.torch as hvd
         #     train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())
-    train_data = AugmentDataset(total_trainset, transform_train_pre, transform_train_after, transform_test, ops_names, True, magnitudes)
-    valid_data = AugmentDataset(total_trainset, transform_train_pre, transform_train_after, transform_test, ops_names, False, magnitudes)
+    train_data = AugmentDataset(total_trainset, transform_train_pre, transform_train_after, transform_test, ops_names,
+                                True, magnitudes)
+    valid_data = AugmentDataset(total_trainset, transform_train_pre, transform_train_after, transform_test, ops_names,
+                                False, magnitudes)
 
-    trainloader = torch.utils.data.DataLoader(
-        train_data, batch_size=batch, shuffle=False,
-        sampler=train_sampler, drop_last=False,
-        pin_memory=True, num_workers=num_workers)
+    trainloader = torch.utils.data.DataLoader(train_data, batch_size=batch, shuffle=False, sampler=train_sampler,
+                                              drop_last=False, pin_memory=True, num_workers=num_workers)
 
-    validloader = torch.utils.data.DataLoader(
-        valid_data, batch_size=batch,
-        # sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
-        sampler=valid_sampler, drop_last=False,
-        pin_memory=True, num_workers=num_workers)
+    validloader = torch.utils.data.DataLoader(valid_data, batch_size=batch,
+                                              # sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
+                                              sampler=valid_sampler, drop_last=False, pin_memory=True,
+                                              num_workers=num_workers)
 
     # trainloader = torch.utils.data.DataLoader(
     #     total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,

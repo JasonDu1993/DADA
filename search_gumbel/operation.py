@@ -216,5 +216,3 @@ class Lighting(object):
             .sum(1).squeeze()
 
         return img.add(rgb.view(3, 1, 1).expand_as(img))
-
-

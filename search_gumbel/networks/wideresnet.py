@@ -50,7 +50,7 @@ class WideResNet(nn.Module):
         n = int((depth - 4) / 6)
         k = widen_factor
 
-        nStages = [16, 16*k, 32*k, 64*k]
+        nStages = [16, 16 * k, 32 * k, 64 * k]
 
         self.conv1 = conv3x3(3, nStages[0])
         self.layer1 = self._wide_layer(WideBasic, nStages[1], n, dropout_rate, stride=1)
@@ -62,7 +62,7 @@ class WideResNet(nn.Module):
         # self.apply(conv_init)
 
     def _wide_layer(self, block, planes, num_blocks, dropout_rate, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1] * (num_blocks - 1)
         layers = []
 
         for stride in strides:

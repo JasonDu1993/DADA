@@ -26,14 +26,17 @@ class Architect(object):
                 self.network_momentum)
         except:
             moment = torch.zeros_like(theta)
-        dtheta = _concat(torch.autograd.grad(loss, self.model.parameters())).data.detach() + self.network_weight_decay * theta
+        dtheta = _concat(
+            torch.autograd.grad(loss, self.model.parameters())).data.detach() + self.network_weight_decay * theta
         unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment + dtheta))
         return unrolled_model
 
-    def step(self, input_train, trans_images_list_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
+    def step(self, input_train, trans_images_list_train, target_train, input_valid, target_valid, eta,
+             network_optimizer, unrolled):
         self.optimizer.zero_grad()
         if unrolled:
-            self._backward_step_unrolled(input_train, trans_images_list_train, target_train, input_valid, target_valid, eta, network_optimizer)
+            self._backward_step_unrolled(input_train, trans_images_list_train, target_train, input_valid, target_valid,
+                                         eta, network_optimizer)
         else:
             self._backward_step(input_valid, target_valid)
         self.optimizer.step()
@@ -42,8 +45,10 @@ class Architect(object):
         loss = self.model._loss(input_valid, target_valid)
         loss.backward()
 
-    def _backward_step_unrolled(self, input_train, trans_images_list_train, target_train, input_valid, target_valid, eta, network_optimizer):
-        unrolled_model = self._compute_unrolled_model(input_train, trans_images_list_train, target_train, eta, network_optimizer)
+    def _backward_step_unrolled(self, input_train, trans_images_list_train, target_train, input_valid, target_valid,
+                                eta, network_optimizer):
+        unrolled_model = self._compute_unrolled_model(input_train, trans_images_list_train, target_train, eta,
+                                                      network_optimizer)
         unrolled_model.set_augmenting(False)
         unrolled_loss = unrolled_model._loss(input_valid, target_valid)
 
@@ -103,4 +108,4 @@ class Architect(object):
         for p, v in zip(self.model.parameters(), vector):
             p.data.add_(R, v)
 
-        return [ None if ( x is None ) or ( y is None) else (x - y).div_(2 * R) for x, y in zip(grads_p, grads_n) ]
+        return [None if (x is None) or (y is None) else (x - y).div_(2 * R) for x, y in zip(grads_p, grads_n)]

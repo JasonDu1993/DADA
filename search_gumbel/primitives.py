@@ -30,3 +30,7 @@ def dfs(index=0, sub_policy=[], depth=0, sub_policies=[]):
 
 dfs(index=0, sub_policy=[], depth=0, sub_policies=sub_policies)
         
+if __name__ == '__main__':
+    dfs()
+    print(sub_policies)
+    print(len(sub_policies))

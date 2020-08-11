@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.distributions
 from torchvision import transforms
 from torch.autograd import Variable
 
@@ -13,21 +14,33 @@ class DifferentiableAugment(nn.Module):
         self.sub_policy = sub_policy
 
     def forward(self, origin_images, trans_images, probability, probability_index, magnitude):
-        index = sum( p_i.item()<<i for i, p_i in enumerate(probability_index))
+        """
+
+        Args:
+            origin_images: shape, [B, C, H, W], torch,float32
+            trans_images: None or list
+            probability: shape [num_ops=2, ], torch,float32
+            probability_index: [num_ops=2, ], torch.bool
+            magnitude: [num_ops=2, ], torch.float32
+
+        Returns:
+
+        """
+        index = sum(p_i.item() << i for i, p_i in enumerate(probability_index))
         com_image = 0
         images = origin_images
         adds = 0
 
-        for selection in range(2**len(self.sub_policy)):
+        for selection in range(2 ** len(self.sub_policy)):
             trans_probability = 1
             for i in range(len(self.sub_policy)):
-                if selection & (1<<i):
+                if selection & (1 << i):
                     trans_probability = trans_probability * probability[i]
                     if selection == index:
                         images = images - magnitude[i]
                         adds = adds + magnitude[i]
                 else:
-                    trans_probability = trans_probability * ( 1 - probability[i] )
+                    trans_probability = trans_probability * (1 - probability[i])
             if selection == index:
                 images = images.detach() + adds
                 com_image = com_image + trans_probability * images
@@ -51,11 +64,33 @@ class MixedAugment(nn.Module):
             ops = DifferentiableAugment(sub_policy)
             self._ops.append(ops)
 
-    def forward(self, origin_images, trans_images_list, probabilities, probabilities_index, magnitudes, weights, weights_index):
+    def forward(self, origin_images, trans_images_list, probabilities, probabilities_index, magnitudes, weights,
+                weights_index):
+        """
+
+        Args:
+            origin_images: shape, [B, C, H, W], torch,float32
+            trans_images_list: None or list
+            probabilities: shape [num_sub_policies=105, num_ops=2], torch.float32
+            probabilities_index: shape [num_sub_policies=105, num_ops=2], torch.bool
+            magnitudes: shape [num_sub_policies=105, num_ops=2], torch.float32
+            weights: shape [num_sub_policies=105, ], torch.float32
+            weights_index: shape [1, ], torch.int64
+
+        Returns:
+
+        """
         trans_images = trans_images_list
         return sum(w * op(origin_images, trans_images, p, p_i, m) if weights_index.item() == i else w
                    for i, (p, p_i, m, w, op) in
                    enumerate(zip(probabilities, probabilities_index, magnitudes, weights, self._ops)))
+        # mix_image = 0
+        # for i, (p, p_i, m, w, op) in enumerate(zip(probabilities, probabilities_index, magnitudes, weights, self._ops)):
+        #     if weights_index.item() == i:
+        #         mix_image += w * op(origin_images, trans_images, p, p_i, m)
+        #     else:
+        #         mix_image += w
+        # return
 
 
 class Network(nn.Module):
@@ -120,15 +155,15 @@ class Network(nn.Module):
         num_sub_policies = len(self.sub_policies)
         num_ops = len(self.sub_policies[0])
         if self.use_cuda:
-            self.probabilities = Variable(0.5*torch.ones(num_sub_policies, num_ops).cuda(), requires_grad=True)
-            self.magnitudes = Variable(0.5*torch.ones(num_sub_policies, num_ops).cuda(), requires_grad=True)
-            self.ops_weights = Variable(1e-3*torch.ones(num_sub_policies).cuda(), requires_grad=True)
+            self.probabilities = Variable(0.5 * torch.ones(num_sub_policies, num_ops).cuda(), requires_grad=True)
+            self.magnitudes = Variable(0.5 * torch.ones(num_sub_policies, num_ops).cuda(), requires_grad=True)
+            self.ops_weights = Variable(1e-3 * torch.ones(num_sub_policies).cuda(), requires_grad=True)
             # self.ops_weights = Variable(1.0/num_sub_policies*torch.ones(num_sub_policies).cuda(), requires_grad=True)
             # self.ops_weights = Variable(1e-3 * torch.randn(num_sub_policies).cuda(), requires_grad=True)
         else:
-            self.probabilities = Variable(0.5*torch.ones(num_sub_policies, num_ops), requires_grad=True)
-            self.magnitudes = Variable(0.5*torch.ones(num_sub_policies, num_ops), requires_grad=True)
-            self.ops_weights = Variable(1e-3*torch.ones(num_sub_policies), requires_grad=True)
+            self.probabilities = Variable(0.5 * torch.ones(num_sub_policies, num_ops), requires_grad=True)
+            self.magnitudes = Variable(0.5 * torch.ones(num_sub_policies, num_ops), requires_grad=True)
+            self.ops_weights = Variable(1e-3 * torch.ones(num_sub_policies), requires_grad=True)
             # self.ops_weights = Variable(1.0/num_sub_policies*torch.ones(num_sub_policies), requires_grad=True)
             # self.ops_weights = Variable(1e-3 * torch.randn(num_sub_policies), requires_grad=True)
 
@@ -154,12 +189,12 @@ class Network(nn.Module):
             probabilities = self.probabilities.clamp(0, 1)
             magnitudes = self.magnitudes.clamp(0, 1)
             ops_weights = torch.nn.functional.softmax(self.ops_weights, dim=-1)
-            gene = []
+            gene = []  # [(('TranslateX', 0.5, 0.5, 0.0095), ('TranslateY', 0.5, 0.5, 0.0095)), ((),()), ...], len 105
             for idx in reversed(index):
                 gene += [tuple([(self.sub_policies[idx][k],
-                          probabilities[idx][k].data.detach().item(),
-                          magnitudes[idx][k].data.detach().item(),
-                          ops_weights[idx].data.detach().item()) for k in range(len(self.sub_policies[idx]))])]
+                                 probabilities[idx][k].data.detach().item(),
+                                 magnitudes[idx][k].data.detach().item(),
+                                 ops_weights[idx].data.detach().item()) for k in range(len(self.sub_policies[idx]))])]
             return gene
             # gene = None
             # max_name = None
@@ -180,20 +215,21 @@ class Network(nn.Module):
     def sample(self):
         probabilities_dist = torch.distributions.RelaxedBernoulli(
             self.temperature, self.probabilities)
-        sample_probabilities = probabilities_dist.rsample()
+        sample_probabilities = probabilities_dist.rsample()  # shape [num_sub_policies=105, num_ops=2]
         sample_probabilities = sample_probabilities.clamp(0.0, 1.0)
-        self.sample_probabilities_index = sample_probabilities >= 0.5
+        self.sample_probabilities_index = sample_probabilities >= 0.5  # shape [num_sub_policies=105, num_ops=2]
         self.sample_probabilities = \
-            self.sample_probabilities_index.float() - sample_probabilities.detach() + sample_probabilities
+            self.sample_probabilities_index.float() - sample_probabilities.detach() + sample_probabilities  # shape [num_sub_policies=105, num_ops=2]
 
         ops_weights_dist = torch.distributions.RelaxedOneHotCategorical(
             self.temperature, logits=self.ops_weights)
-            # self.temperature, torch.nn.functional.softmax(self.ops_weights, dim=-1))
-        sample_ops_weights = ops_weights_dist.rsample()
+        # self.temperature, torch.nn.functional.softmax(self.ops_weights, dim=-1))
+        sample_ops_weights = ops_weights_dist.rsample()  # shape [num_sub_policies=105, ]
         sample_ops_weights = sample_ops_weights.clamp(0.0, 1.0)
-        self.sample_ops_weights_index = torch.max(sample_ops_weights, dim=-1, keepdim=True)[1]
-        one_h = torch.zeros_like(sample_ops_weights).scatter_(-1, self.sample_ops_weights_index, 1.0)
-        self.sample_ops_weights = one_h - sample_ops_weights.detach() + sample_ops_weights
+        self.sample_ops_weights_index = torch.max(sample_ops_weights, dim=-1, keepdim=True)[1]  # shape [1, ]
+        one_h = torch.zeros_like(sample_ops_weights).scatter_(-1, self.sample_ops_weights_index,
+                                                              1.0)  # shape [num_sub_policies=105, ]
+        self.sample_ops_weights = one_h - sample_ops_weights.detach() + sample_ops_weights  # shape [num_sub_policies=105, ]
         # print(sample_probabilities)
         # print(self.sample_probabilities_index)
         # print(sample_ops_weights)
@@ -202,7 +238,8 @@ class Network(nn.Module):
 
     def forward_train(self, origin_images, trans_images_list):
         mix_image = self.mix_augment.forward(
-            origin_images, trans_images_list, self.sample_probabilities, self.sample_probabilities_index, self.magnitudes, self.sample_ops_weights, self.sample_ops_weights_index)
+            origin_images, trans_images_list, self.sample_probabilities, self.sample_probabilities_index,
+            self.magnitudes, self.sample_ops_weights, self.sample_ops_weights_index)
         output = self.model(mix_image)
         return output
 
@@ -218,4 +255,3 @@ class Network(nn.Module):
     def _loss(self, input, target, trans_images_list=None):
         logits = self(input, trans_images_list)
         return self._criterion(logits, target)
-

@@ -18,7 +18,6 @@ ARCHIVE_DICT = {
     }
 }
 
-
 import torchvision
 from torchvision.datasets.utils import check_integrity, download_url
 

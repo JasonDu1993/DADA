@@ -1,4 +1,5 @@
-set -x
+#!/bin/bash
+#set -x
 DATASET=reduced_imagenet
 DATASET=reduced_cifar10
 DATASET=reduced_cifar100
@@ -82,5 +83,8 @@ TEMPERATURE=0.5
 
 
 SAVE=paper_augment2_stp_multi_${DATASET}_${MODEL}_${BATCH}_${EPOCH}_awd${AWD}_alr${ALR}_cutout_${CUTOUT}_lr${LR}_wd${WD}_temp_${TEMPERATURE}
+echo $SAVE
+echo $DATASET
 which python
-python train_search_paper.py --unrolled --report_freq 1 --num_workers 0 --epoch ${EPOCH} --batch_size ${BATCH} --learning_rate ${LR} --dataset ${DATASET} --model_name ${MODEL} --save ${SAVE} --gpu ${GPU} --arch_weight_decay ${AWD} --arch_learning_rate ${ALR} --weight_decay ${WD} --cutout --cutout_length ${CUTOUT} --temperature ${TEMPERATURE}
+echo $python
+#python train_search_paper.py --unrolled --report_freq 1 --num_workers 0 --epoch ${EPOCH} --batch_size ${BATCH} --learning_rate ${LR} --dataset ${DATASET} --model_name ${MODEL} --save ${SAVE} --gpu ${GPU} --arch_weight_decay ${AWD} --arch_learning_rate ${ALR} --weight_decay ${WD} --cutout --cutout_length ${CUTOUT} --temperature ${TEMPERATURE}

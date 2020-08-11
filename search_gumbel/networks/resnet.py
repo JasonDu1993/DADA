@@ -81,9 +81,10 @@ class Bottleneck(nn.Module):
 
         return out
 
+
 class ResNet(nn.Module):
     def __init__(self, dataset, depth, num_classes, bottleneck=False):
-        super(ResNet, self).__init__()        
+        super(ResNet, self).__init__()
         self.dataset = dataset
         if self.dataset.startswith('cifar'):
             self.inplanes = 16
@@ -100,14 +101,15 @@ class ResNet(nn.Module):
             self.relu = nn.ReLU(inplace=True)
             self.layer1 = self._make_layer(block, 16, n)
             self.layer2 = self._make_layer(block, 32, n, stride=2)
-            self.layer3 = self._make_layer(block, 64, n, stride=2) 
+            self.layer3 = self._make_layer(block, 64, n, stride=2)
             # self.avgpool = nn.AvgPool2d(8)
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
             self.fc = nn.Linear(64 * block.expansion, num_classes)
 
         elif dataset == 'imagenet':
-            blocks ={18: BasicBlock, 34: BasicBlock, 50: Bottleneck, 101: Bottleneck, 152: Bottleneck, 200: Bottleneck}
-            layers ={18: [2, 2, 2, 2], 34: [3, 4, 6, 3], 50: [3, 4, 6, 3], 101: [3, 4, 23, 3], 152: [3, 8, 36, 3], 200: [3, 24, 36, 3]}
+            blocks = {18: BasicBlock, 34: BasicBlock, 50: Bottleneck, 101: Bottleneck, 152: Bottleneck, 200: Bottleneck}
+            layers = {18: [2, 2, 2, 2], 34: [3, 4, 6, 3], 50: [3, 4, 6, 3], 101: [3, 4, 23, 3], 152: [3, 8, 36, 3],
+                      200: [3, 24, 36, 3]}
             assert layers[depth], 'invalid detph for ResNet (depth should be one of 18, 34, 50, 101, 152, and 200)'
 
             self.inplanes = 64
@@ -153,7 +155,7 @@ class ResNet(nn.Module):
             x = self.conv1(x)
             x = self.bn1(x)
             x = self.relu(x)
-            
+
             x = self.layer1(x)
             x = self.layer2(x)
             x = self.layer3(x)
@@ -176,5 +178,5 @@ class ResNet(nn.Module):
             x = self.avgpool(x)
             x = x.view(x.size(0), -1)
             x = self.fc(x)
-    
+
         return x

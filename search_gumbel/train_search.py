@@ -74,6 +74,7 @@ logging.getLogger().addHandler(fh)
 # CIFAR_CLASSES = 10
 CIFAR_CLASSES = num_class(args.dataset)
 
+
 def reproducibility(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -85,18 +86,18 @@ def reproducibility(seed):
     torch.autograd.set_detect_anomaly(True)
 
 
-
 def print_genotype(geno):
     for i, sub_policy in enumerate(geno):
         logging.info("%d: %s %f" %
                      (i, '\t'.join(["(%s %f %f)" % (x[0], x[1], x[2]) for x in sub_policy]), sub_policy[0][3]))
     geno_out = [[(x[0], x[1], x[2]) for x in sub_policy] for sub_policy in geno]
-    logging.info("genotype_%d: %s" % ( len(geno_out), str(geno_out) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:5]), str(geno_out[0:5]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:10]), str(geno_out[0:10]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:15]), str(geno_out[0:15]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:20]), str(geno_out[0:20]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:25]), str(geno_out[0:25]) ))
+    logging.info("genotype_%d: %s" % (len(geno_out), str(geno_out)))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:5]), str(geno_out[0:5])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:10]), str(geno_out[0:10])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:15]), str(geno_out[0:15])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:20]), str(geno_out[0:20])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:25]), str(geno_out[0:25])))
+
 
 def main():
     start_time = time.time()
@@ -214,7 +215,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         # input_search = Variable(input_search, requires_grad=False).cuda()
         # target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
-        architect.step(input, trans_images_list, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        architect.step(input, trans_images_list, target, input_search, target_search, lr, optimizer,
+                       unrolled=args.unrolled)
 
         optimizer.zero_grad()
         logits = model(input, trans_images_list)

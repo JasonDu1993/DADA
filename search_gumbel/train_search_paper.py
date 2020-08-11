@@ -32,7 +32,7 @@ parser.add_argument('--dataset', type=str, default='cifar10',
                     choices=['cifar10', 'reduced_cifar10', 'cifar100', 'reduced_cifar100',
                              'svhn', 'reduced_svhn', 'imagenet', 'reduced_imagenet'],
                     help='location of the data corpus')
-parser.add_argument('--batch_size', type=int, default=512, help='batch size')
+parser.add_argument('--batch_size', type=int, default=2, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.400, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -58,7 +58,7 @@ parser.add_argument('--num_policies', type=int, default=105, help="num_policies"
 parser.add_argument('--temperature', type=float, default=0.1, help="temperature")
 
 args = parser.parse_args()
-sub_policies = random.sample(sub_policies, args.num_policies)
+sub_policies = random.sample(sub_policies, args.num_policies)  # [('ShearX', 'ShearY'), ('ShearX', 'TranslateX'), ...]
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 args.save = os.path.join('search', args.save)
@@ -74,6 +74,7 @@ logging.getLogger().addHandler(fh)
 # CIFAR_CLASSES = 10
 CIFAR_CLASSES = num_class(args.dataset)
 
+
 def reproducibility(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -85,18 +86,18 @@ def reproducibility(seed):
     torch.autograd.set_detect_anomaly(True)
 
 
-
 def print_genotype(geno):
     for i, sub_policy in enumerate(geno):
         logging.info("%d: %s %f" %
                      (i, '\t'.join(["(%s %f %f)" % (x[0], x[1], x[2]) for x in sub_policy]), sub_policy[0][3]))
-    geno_out = [[(x[0], x[1], x[2]) for x in sub_policy] for sub_policy in geno]
-    logging.info("genotype_%d: %s" % ( len(geno_out), str(geno_out) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:5]), str(geno_out[0:5]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:10]), str(geno_out[0:10]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:15]), str(geno_out[0:15]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:20]), str(geno_out[0:20]) ))
-    logging.info("genotype_%d: %s" % ( len(geno_out[0:25]), str(geno_out[0:25]) ))
+    geno_out = [[(x[0], x[1], x[2]) for x in sub_policy] for sub_policy in geno]  # [[('TranslateX', 0.5, 0.5), ('TranslateY', 0.5, 0.5)],...]
+    logging.info("genotype_%d: %s" % (len(geno_out), str(geno_out)))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:5]), str(geno_out[0:5])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:10]), str(geno_out[0:10])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:15]), str(geno_out[0:15])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:20]), str(geno_out[0:20])))
+    logging.info("genotype_%d: %s" % (len(geno_out[0:25]), str(geno_out[0:25])))
+
 
 def main():
     start_time = time.time()
@@ -191,8 +192,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     top5 = utils.AvgrageMeter()
 
     model.sample()
-    train_queue.dataset.weights_index = model.sample_ops_weights_index
-    train_queue.dataset.probabilities_index = model.sample_probabilities_index
+    train_queue.dataset.weights_index = model.sample_ops_weights_index  # shape [1, ], torch.int64
+    train_queue.dataset.probabilities_index = model.sample_probabilities_index  # shape [num_sub_policies=105, num_ops=2], torch.bool
     for step, (input, target) in enumerate(train_queue):
         model.train()
         model.set_augmenting(True)
@@ -200,8 +201,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
         # input = Variable(input, requires_grad=False).cuda()
         # target = Variable(target, requires_grad=False).cuda(async=True)
-        input = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(non_blocking=True)
+        input = Variable(input, requires_grad=False).cuda()  # shape [B, C, H, W]
+        target = Variable(target, requires_grad=False).cuda(non_blocking=True)  # shape [B, ]
         trans_images_list = []
         # trans_images_list = [ [Variable(trans_image, requires_grad=False).cuda()
         #                         for trans_image in trans_images]
@@ -209,12 +210,13 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
         # get a random minibatch from the search queue with replacement
         input_search, target_search = next(iter(valid_queue))
-        input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = Variable(target_search, requires_grad=False).cuda(non_blocking=True)
+        input_search = Variable(input_search, requires_grad=False).cuda()  # shape [B, C, H, W]
+        target_search = Variable(target_search, requires_grad=False).cuda(non_blocking=True)  # shape [B, ]
         # input_search = Variable(input_search, requires_grad=False).cuda()
         # target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
-        architect.step(input, trans_images_list, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        architect.step(input, trans_images_list, target, input_search, target_search, lr, optimizer,
+                       unrolled=args.unrolled)
 
         optimizer.zero_grad()
         logits = model(input, trans_images_list)
@@ -238,9 +240,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             logits_valid = model(input_search)
             loss_valid = criterion(logits_valid, target_search)
             prec1_valid, prec5_valid = utils.accuracy(logits_valid.detach(), target_search.detach(), topk=(1, 5))
-            logging.info('valid_acc_iter %03d %e %f %f', step, loss_valid.item(), prec1_valid.item(), prec5_valid.item())
-
-
+            logging.info('valid_acc_iter %03d %e %f %f', step, loss_valid.item(), prec1_valid.item(),
+                         prec5_valid.item())
 
         model.sample()
         train_queue.dataset.weights_index = model.sample_ops_weights_index
